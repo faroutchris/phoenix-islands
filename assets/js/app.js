@@ -16,6 +16,9 @@
 //
 // If you have dependencies that try to import CSS, esbuild will generate a separate `app.css` file.
 // To load it, simply add a second `<link>` to your `root.html.heex` file.
+import {init} from "./islands/island_root"
+// TODO: implement hydrate and resolve for frameworks
+init({ resolve: (...args) => console.log("resolve", args), hydrate: (...args) => console.log("hydrate", args)})
 
 // Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
 import "phoenix_html"
@@ -80,7 +83,6 @@ import "phoenix_html"
 //     window.liveReloader = reloader
 //   })
 // }
-
 
 // Handle flash close
 document.querySelectorAll("[role=alert][data-flash]").forEach((el) => {

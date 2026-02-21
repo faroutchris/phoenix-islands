@@ -86,6 +86,7 @@ defmodule SelfServiceWeb do
       import Phoenix.HTML
       # Core UI components
       import SelfServiceWeb.CoreComponents
+      import SelfServiceWeb.IslandComponent
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
