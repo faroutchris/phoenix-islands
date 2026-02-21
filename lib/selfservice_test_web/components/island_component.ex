@@ -12,9 +12,9 @@ defmodule SelfServiceWeb.IslandComponent do
     ~H"""
     <island-root
       data-module={@module}
-      data-props={@json}
       data-lazy={@lazy}
       data-media={@media}
+      data-props={@json}
     ></island-root>
     """
   end
