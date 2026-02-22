@@ -1,0 +1,20 @@
+{
+  "name": "assets",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "node build.js",
+    "deploy": "node build.js --minify",
+    "dev": "node build.js --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "esbuild": "^0.27.3",
+    "esbuild-svelte": "^0.9.4",
+    "svelte": "^5.53.2"
+  }
+}
