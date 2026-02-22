@@ -23,6 +23,11 @@ config :selfservice_test, SelfServiceWeb.Endpoint,
   pubsub_server: SelfService.PubSub,
   live_view: [signing_salt: "2TzUMSHY"]
 
+# Configure node/SSR rendering
+config :selfservice_test, SelfServiceWeb.IslandSsrWorker,
+  worker_path: "priv/static/assets/ssr/worker.js",
+  runtime: "node"
+
 # Configures the mailer
 #
 # By default it uses the "Local" adapter which stores the emails

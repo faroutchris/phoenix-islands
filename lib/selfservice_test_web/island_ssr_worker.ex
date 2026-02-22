@@ -2,42 +2,39 @@ defmodule SelfServiceWeb.IslandSsrWorker do
   use GenServer
   require Logger
 
-  @worker_path Application.app_dir(:selfservice_test, "priv/static/assets/ssr/worker.js")
   @initial_state %{
     id: nil,
     port: nil,
     next_id: 1,
     buffer: "",
-    pending: %{}
+    pending: %{},
+    worker_path: nil,
+    runtime: nil
   }
+
+  # --- Public API ---
 
   def start_link(opts \\ []) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
   end
 
-  def render do
-    GenServer.call(__MODULE__, {:render, %{module: "Some component", props: %{test: "Hello"}}})
+  def render(module, props) do
+    GenServer.call(__MODULE__, {:render, %{module: module, props: props}})
   end
+
+  # --- Callbacks ---
 
   @impl true
-  def init(_args \\ []) do
-    {:ok, start_port!(@initial_state)}
-  end
+  def init(_opts) do
+    config = Application.get_env(:selfservice_test, __MODULE__, nil)
 
-  defp ensure_port_running(%{port: nil} = state), do: start_port!(state)
-  defp ensure_port_running(state), do: state
+    state = %{
+      @initial_state
+      | worker_path: Keyword.fetch!(config, :worker_path),
+        runtime: Keyword.fetch!(config, :runtime)
+    }
 
-  defp start_port!(state) do
-    port =
-      Port.open({:spawn_executable, System.find_executable("node")}, [
-        :binary,
-        :exit_status,
-        :hide,
-        :use_stdio,
-        args: [@worker_path]
-      ])
-
-    %{state | port: port}
+    {:ok, start_port!(state)}
   end
 
   # Handle node buffer
@@ -45,15 +42,15 @@ defmodule SelfServiceWeb.IslandSsrWorker do
   def handle_info({port, {:data, chunk}}, %{port: port} = state) do
     # Append the new chunk to the current state.buffer
     buffer = state.buffer <> chunk
-    # Process all complete lines (\n), save incomplete lines in `rest`
-    {lines, rest} = split_buffer(buffer)
+    # Process all complete lines (\n), save incomplete lines in `rest` to be passed in to buffer
+    {lines, rest_buffer} = split_buffer(buffer)
 
     state =
-      lines
-      # Save the rest of the buffer in the next state
-      |> Enum.reduce(%{state | buffer: rest}, fn line, acc ->
-        line = String.trim(line)
-        if line == "", do: acc, else: handle_response(line, acc)
+      Enum.reduce(lines, %{state | buffer: rest_buffer}, fn line, acc ->
+        case String.trim(line) do
+          "" -> acc
+          trimmed -> handle_response(trimmed, acc)
+        end
       end)
 
     {:noreply, state}
@@ -71,7 +68,6 @@ defmodule SelfServiceWeb.IslandSsrWorker do
 
     {:noreply, %{state | port: nil, pending: %{}, buffer: ""}}
   end
-
 
   # Render call
   @impl true
@@ -106,6 +102,25 @@ defmodule SelfServiceWeb.IslandSsrWorker do
     {:noreply, %{state | next_id: id + 1, pending: pending}}
   end
 
+  # --- Helpers ---
+
+  defp ensure_port_running(%{port: nil} = state), do: start_port!(state)
+  defp ensure_port_running(state), do: state
+
+  defp start_port!(state) do
+    port =
+      Port.open({:spawn_executable, System.find_executable(state.runtime)}, [
+        :binary,
+        :exit_status,
+        :hide,
+        :use_stdio,
+        args: [state.worker_path]
+      ])
+
+    Logger.info("Started Node worker on port #{inspect(port)}")
+    %{state | port: port}
+  end
+
   defp split_buffer(buffer) do
     case String.split(buffer, "\n") do
       [single] ->
@@ -120,24 +135,25 @@ defmodule SelfServiceWeb.IslandSsrWorker do
   defp handle_response(line, state) do
     case Jason.decode(line) do
       {:ok, %{"id" => id, "ok" => true, "data" => data}} ->
-        {entry, pending} = Map.pop(state.pending, id)
-        if entry do
-          Process.cancel_timer(entry.timer_ref)
-          GenServer.reply(entry.from, {:ok, data})
-        end
-        %{state | pending: pending}
+        reply(state, id, {:ok, data})
 
       {:ok, %{"id" => id, "ok" => false, "error" => error}} ->
-        {entry, pending} = Map.pop(state.pending, id)
-        if entry do
-          Process.cancel_timer(entry.timer_ref)
-          GenServer.reply(entry.from, {:error, error})
-        end
-        %{state | pending: pending}
+        reply(state, id, {:error, error})
 
       other ->
         Logger.warning("Unexpected worker output: #{IO.inspect(other)}")
         state
     end
+  end
+
+  defp reply(state, id, result) do
+    {entry, pending} = Map.pop(state.pending, id)
+
+    if entry do
+      Process.cancel_timer(entry.timer_ref)
+      GenServer.reply(entry.from, result)
+    end
+
+    %{state | pending: pending}
   end
 end
