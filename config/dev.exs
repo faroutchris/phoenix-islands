@@ -23,7 +23,8 @@ config :selfservice_test, SelfServiceWeb.Endpoint,
   secret_key_base: "ecqfDd3ZbdJY5e8oEoGxJJkBZ2dxcLotn9MUPuCM7pJDvPpX2ZftGH4nkIaNLF2U",
   watchers: [
     esbuild: {Esbuild, :install_and_run, [:selfservice_test, ~w(--sourcemap=inline --watch)]},
-    tailwind: {Tailwind, :install_and_run, [:selfservice_test, ~w(--watch)]}
+    tailwind: {Tailwind, :install_and_run, [:selfservice_test, ~w(--watch)]},
+    esbuild_ssr: {Esbuild, :install_and_run, [:islands_ssr, ~w(--watch)]}
   ]
 
 # ## SSL Support
