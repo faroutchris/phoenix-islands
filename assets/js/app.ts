@@ -1,3 +1,4 @@
+
 // If you want to use Phoenix channels, run `mix help phx.gen.channel`
 // to get started and then uncomment the line below.
 // import "./user_socket.js"
@@ -16,9 +17,23 @@
 //
 // If you have dependencies that try to import CSS, esbuild will generate a separate `app.css` file.
 // To load it, simply add a second `<link>` to your `root.html.heex` file.
-import {init} from "./islands/island_root"
+
+import components from 'virtual:components'
+import { init } from "./islands/island_root"
+import { hydrate } from "svelte"
+
 // TODO: implement hydrate and resolve for frameworks
-init({ resolve: (...args) => console.log("resolve", args), hydrate: (...args) => console.log("hydrate", args)})
+init({
+  resolve: async (name) => {
+    const importFn = components[name];
+    if (!importFn) throw new Error(`Component not found: ${name}`);
+    const module = await importFn();
+    return module.default;
+  },
+  hydrate: (Component, { target, props }) => {
+    hydrate(Component, { target, props })
+  }
+})
 
 // Include phoenix_html to handle method=PUT/DELETE in forms and buttons.
 import "phoenix_html"

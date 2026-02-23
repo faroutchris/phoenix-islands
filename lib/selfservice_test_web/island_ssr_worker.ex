@@ -141,7 +141,7 @@ defmodule SelfServiceWeb.IslandSsrWorker do
         reply(state, id, {:error, error})
 
       other ->
-        Logger.warning("Unexpected worker output: #{IO.inspect(other)}")
+        Logger.warning("Unexpected worker output: #{inspect(other)}")
         state
     end
   end

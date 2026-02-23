@@ -135,7 +135,7 @@ export function init<T>({ resolve, hydrate }: ClientConfig<T>) {
     }
 
     async hydrate() {
-      const src = this.getAttribute('src') ?? ''
+      const src = this.getAttribute('data-module') ?? ''
       const propsData = this.getAttribute('data-props')
       const props = propsData ? safeJsonParse(propsData) : {}
 
