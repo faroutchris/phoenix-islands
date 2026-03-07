@@ -14,6 +14,8 @@ defmodule Dashboard.Application do
        repos: Application.fetch_env!(:dashboard, :ecto_repos), skip: skip_migrations?()},
       {DNSCluster, query: Application.get_env(:dashboard, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Dashboard.PubSub},
+      {Task.Supervisor, name: Dashboard.TaskSupervisor},
+      Dashboard.RSS.Scheduler,
       Supervisor.child_spec(
         {PartitionSupervisor,
          child_spec: Dashboard.SSR.Worker,

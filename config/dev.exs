@@ -5,7 +5,11 @@ config :dashboard, Dashboard.Repo,
   database: Path.expand("../dashboard_dev.db", __DIR__),
   pool_size: 5,
   stacktrace: true,
-  show_sensitive_data_on_connection_error: true
+  show_sensitive_data_on_connection_error: true,
+  # Enable WAL mode
+  wal_mode: true,
+  # Set a busy timeout to handle locking
+  busy_timeout: 5000
 
 # For development, we disable any cache and enable
 # debugging and code reloading.
