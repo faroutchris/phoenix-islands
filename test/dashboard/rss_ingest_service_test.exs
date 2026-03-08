@@ -3,6 +3,7 @@ defmodule Dashboard.RSS.IngestServiceTest do
 
   alias Dashboard.RSS
   alias Dashboard.RSS.Feed
+  alias Dashboard.RSS.FeedEntry
   alias Dashboard.RSS.IngestService
 
   setup do
@@ -37,6 +38,60 @@ defmodule Dashboard.RSS.IngestServiceTest do
     assert %DateTime{} = updated.next_fetch
     assert is_binary(updated.content_hash)
     assert String.length(updated.content_hash) == 64
+
+    entries = RSS.list_feed_entries(updated.id)
+    assert length(entries) == 1
+  end
+
+  test "update_pipeline/1 upserts entries deterministically and replaces enclosure set" do
+    feed = create_feed!("test://entries")
+
+    assert {:ok, %Feed{} = first_feed} = IngestService.update_pipeline(feed)
+    first_entries = RSS.list_feed_entries(first_feed.id)
+    assert length(first_entries) == 3
+
+    guid_entry_first = Enum.find(first_entries, &(&1.identity_source == "guid"))
+    assert guid_entry_first.guid == "guid-1"
+
+    assert Enum.sort(Enum.map(guid_entry_first.enclosures, & &1.url)) ==
+             Enum.sort(["https://cdn.example/a.mp3", "https://cdn.example/b.jpg"])
+
+    reloaded_feed = RSS.get_feed!(first_feed.id)
+    assert {:ok, %Feed{} = second_feed} = IngestService.update_pipeline(reloaded_feed)
+
+    second_entries = RSS.list_feed_entries(second_feed.id)
+    assert length(second_entries) == 3
+
+    guid_entry_second = Enum.find(second_entries, &(&1.identity_source == "guid"))
+    assert guid_entry_second.id == guid_entry_first.id
+    assert guid_entry_second.first_seen_at == guid_entry_first.first_seen_at
+
+    assert DateTime.compare(guid_entry_second.last_seen_at, guid_entry_first.last_seen_at) in [
+             :eq,
+             :gt
+           ]
+
+    assert guid_entry_second.title == "Guid Entry Updated"
+
+    assert Enum.sort(Enum.map(guid_entry_second.enclosures, & &1.url)) ==
+             Enum.sort(["https://cdn.example/a.mp3", "https://cdn.example/c.mp4"])
+
+    fingerprint_entry = Enum.find(second_entries, &(&1.identity_source == "fingerprint"))
+    assert %FeedEntry{} = fingerprint_entry
+  end
+
+  test "update_pipeline/1 does not mutate entries on not modified responses" do
+    feed = create_feed!("test://entries_not_modified")
+
+    assert {:ok, %Feed{} = first_feed} = IngestService.update_pipeline(feed)
+    [entry] = RSS.list_feed_entries(first_feed.id)
+
+    reloaded_feed = RSS.get_feed!(first_feed.id)
+    assert {:ok, %Feed{} = _second_feed} = IngestService.update_pipeline(reloaded_feed)
+
+    [entry_after] = RSS.list_feed_entries(first_feed.id)
+    assert entry_after.id == entry.id
+    assert entry_after.last_seen_at == entry.last_seen_at
   end
 
   test "update_pipeline/1 increments miss_count on not modified" do
@@ -132,6 +187,22 @@ defmodule Dashboard.RSS.IngestServiceTest do
       {:ok, feed, response}
     end
 
+    def fetch_feed(%Feed{url: "test://entries"} = feed) do
+      body = if is_nil(feed.content_hash), do: "<entries-v1 />", else: "<entries-v2 />"
+      response = %HTTPoison.Response{status_code: 200, headers: [], body: body}
+      {:ok, feed, response}
+    end
+
+    def fetch_feed(%Feed{url: "test://entries_not_modified"} = feed) do
+      if is_nil(feed.content_hash) do
+        response = %HTTPoison.Response{status_code: 200, headers: [], body: "<entries-single />"}
+        {:ok, feed, response}
+      else
+        response = %HTTPoison.Response{status_code: 304, headers: []}
+        {:not_modified, feed, response}
+      end
+    end
+
     def fetch_feed(%Feed{url: "test://parse_failure"} = feed) do
       response = %HTTPoison.Response{status_code: 200, headers: [], body: "<bad />"}
       {:ok, feed, response}
@@ -172,8 +243,92 @@ defmodule Dashboard.RSS.IngestServiceTest do
            ttl: "60"
          },
          entries: [
-           %{pub_date: "Tue, 03 Mar 2026 10:00:00 GMT"},
-           %{pub_date: "Mon, 02 Mar 2026 10:00:00 GMT"}
+           %{
+             guid: "guid-modified-1",
+             title: "Entry",
+             pub_date: "Tue, 03 Mar 2026 10:00:00 GMT",
+             enclosure: %{
+               url: "https://cdn.example/media.mp3",
+               type: "audio/mpeg",
+               length: "1234"
+             }
+           }
+         ]
+       }}
+    end
+
+    def parse_string("<entries-v1 />") do
+      {:ok,
+       %{
+         feed: %{title: "Entries Feed", description: "v1", link: "https://example.com/entries"},
+         entries: [
+           %{
+             guid: "guid-1",
+             title: "Guid Entry",
+             author: "Author One",
+             pub_date: "Tue, 03 Mar 2026 10:00:00 GMT",
+             enclosure: [
+               %{url: "https://cdn.example/a.mp3", type: "audio/mpeg", length: "1000"},
+               %{url: "https://cdn.example/b.jpg", type: "image/jpeg", length: "2000"}
+             ]
+           },
+           %{
+             link: "https://example.com/posts/2",
+             title: "Link Entry",
+             author: "Author Two",
+             pub_date: "Mon, 02 Mar 2026 10:00:00 GMT",
+             enclosure: %{url: "https://cdn.example/l1.mp4", type: "video/mp4", length: "4000"}
+           },
+           %{
+             title: "Fingerprint Entry",
+             author: "Author Three",
+             pub_date: "Sun, 01 Mar 2026 10:00:00 GMT",
+             summary: "No guid or link"
+           }
+         ]
+       }}
+    end
+
+    def parse_string("<entries-v2 />") do
+      {:ok,
+       %{
+         feed: %{title: "Entries Feed", description: "v2", link: "https://example.com/entries"},
+         entries: [
+           %{
+             guid: "guid-1",
+             title: "Guid Entry Updated",
+             author: "Author One",
+             pub_date: "Tue, 03 Mar 2026 10:00:00 GMT",
+             updated: "2026-03-03T12:00:00Z",
+             enclosure: [
+               %{url: "https://cdn.example/a.mp3", type: "audio/mpeg", length: "1500"},
+               %{url: "https://cdn.example/c.mp4", type: "video/mp4", length: "5000"}
+             ]
+           },
+           %{
+             link: "https://example.com/posts/2",
+             title: "Link Entry Updated",
+             author: "Author Two",
+             pub_date: "Mon, 02 Mar 2026 10:00:00 GMT"
+           }
+         ]
+       }}
+    end
+
+    def parse_string("<entries-single />") do
+      {:ok,
+       %{
+         feed: %{
+           title: "Single Entry Feed",
+           description: "single",
+           link: "https://example.com/single"
+         },
+         entries: [
+           %{
+             guid: "guid-single",
+             title: "Single Entry",
+             pub_date: "Tue, 03 Mar 2026 10:00:00 GMT"
+           }
          ]
        }}
     end

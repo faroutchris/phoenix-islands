@@ -2,6 +2,8 @@ defmodule Dashboard.RSS.Feed do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias Dashboard.RSS.FeedEntry
+
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
   schema "feed" do
@@ -27,6 +29,8 @@ defmodule Dashboard.RSS.Feed do
     field :error_count, :integer, default: 0
     field :observed_interval, :integer
     field :ttl, :integer
+
+    has_many :entries, FeedEntry
 
     timestamps(type: :utc_datetime)
   end
