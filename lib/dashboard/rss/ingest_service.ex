@@ -236,17 +236,29 @@ defmodule Dashboard.RSS.IngestService do
   # --- Cadence estimation ---
 
   defp estimate_cadence(entries) when is_list(entries) do
-    entries
-    |> Enum.map(&extract_pub_date/1)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.sort(:desc)
-    |> Enum.take(10)
-    |> Enum.chunk_every(2, 1, :discard)
-    |> Enum.map(fn [a, b] -> DateTime.diff(a, b) end)
-    |> Enum.reject(&(&1 <= 0))
-    |> case do
-      [] -> nil
-      intervals -> div(Enum.sum(intervals), length(intervals))
+    intervals =
+      entries
+      |> Enum.map(&extract_pub_date/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.sort(fn a, b -> DateTime.compare(a, b) == :gt end)
+      |> Enum.take(10)
+      |> Enum.chunk_every(2, 1, :discard)
+      |> Enum.map(fn [a, b] -> DateTime.diff(a, b) end)
+      |> Enum.reject(&(&1 <= 0))
+      |> Enum.sort()
+
+    case intervals do
+      [] ->
+        nil
+
+      list ->
+        mid = div(length(list), 2)
+
+        if rem(length(list), 2) == 1 do
+          Enum.at(list, mid)
+        else
+          div(Enum.at(list, mid - 1) + Enum.at(list, mid), 2)
+        end
     end
   end
 
