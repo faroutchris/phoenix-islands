@@ -16,6 +16,7 @@ defmodule Dashboard.RSS.IngestService do
   alias Dashboard.RSS.Feed
   alias Dashboard.RSS.FetchWorker
   alias Dashboard.RSS.Backoff
+  alias Dashboard.RSS.DateParser
   alias Dashboard.HttpUtils
 
   def update_feeds do
@@ -86,7 +87,6 @@ defmodule Dashboard.RSS.IngestService do
             entries = Map.get(parsed, :entries, [])
             observed_interval = estimate_cadence(entries) || feed.observed_interval
             ttl = extract_ttl(parsed_feed)
-            normalized_entries = normalize_entries_for_persistence(entries)
 
             updated_feed = %{feed | observed_interval: observed_interval, ttl: ttl}
             next_fetch = Backoff.calculate_next(updated_feed, response, :modified)
@@ -118,7 +118,7 @@ defmodule Dashboard.RSS.IngestService do
               status: :active
             }
 
-            RSS.upsert_feed_with_entries(feed, feed_attrs, normalized_entries)
+            RSS.upsert_feed_with_entries(feed, feed_attrs, entries)
 
           {:error, _reason} ->
             # Parse failure — treat as error
@@ -274,143 +274,7 @@ defmodule Dashboard.RSS.IngestService do
 
   defp extract_pub_date(entry) do
     raw = Map.get(entry, :pub_date) || Map.get(entry, :updated) || Map.get(entry, :published)
-
-    case raw do
-      nil ->
-        nil
-
-      %DateTime{} = dt ->
-        to_utc_datetime(dt)
-
-      %NaiveDateTime{} = ndt ->
-        to_utc_datetime(ndt)
-
-      unix when is_integer(unix) and unix > 0 ->
-        to_utc_datetime(unix)
-
-      date_string when is_binary(date_string) ->
-        parse_date_string(date_string)
-
-      _ ->
-        nil
-    end
-  end
-
-  defp normalize_entries_for_persistence(entries) when is_list(entries) do
-    Enum.map(entries, &normalize_entry_for_persistence/1)
-  end
-
-  defp normalize_entries_for_persistence(_), do: []
-
-  defp normalize_entry_for_persistence(entry) when is_map(entry) do
-    %{
-      guid: Map.get(entry, :guid) || Map.get(entry, :id),
-      link: Map.get(entry, :link) || Map.get(entry, :url),
-      title: Map.get(entry, :title),
-      author: Map.get(entry, :author) || Map.get(entry, :dc_creator),
-      summary: Map.get(entry, :summary) || Map.get(entry, :description),
-      content: Map.get(entry, :content),
-      published_at: extract_pub_date(entry),
-      updated_at_feed: parse_entry_date(Map.get(entry, :updated)),
-      enclosures: normalize_enclosures_for_persistence(extract_enclosures_for_persistence(entry))
-    }
-  end
-
-  defp normalize_entry_for_persistence(_), do: %{}
-
-  defp extract_enclosures_for_persistence(entry) when is_map(entry) do
-    Map.get(entry, :enclosures) || Map.get(entry, :enclosure) || []
-  end
-
-  defp extract_enclosures_for_persistence(_), do: []
-
-  defp normalize_enclosures_for_persistence(enclosures) when is_list(enclosures), do: enclosures
-  defp normalize_enclosures_for_persistence(enclosure) when is_map(enclosure), do: [enclosure]
-  defp normalize_enclosures_for_persistence(_), do: []
-
-  defp parse_date_string(date_string) do
-    date_string = String.trim(date_string)
-
-    if date_string == "" do
-      nil
-    else
-      parse_iso8601(date_string) || parse_rfc2822(date_string)
-    end
-  end
-
-  defp parse_entry_date(nil), do: nil
-  defp parse_entry_date(%DateTime{} = dt), do: to_utc_datetime(dt)
-  defp parse_entry_date(%NaiveDateTime{} = ndt), do: to_utc_datetime(ndt)
-  defp parse_entry_date(unix) when is_integer(unix) and unix > 0, do: to_utc_datetime(unix)
-
-  defp parse_entry_date(value) when is_binary(value) do
-    parse_date_string(value)
-  end
-
-  defp parse_entry_date(_), do: nil
-
-  defp parse_iso8601(date_string) do
-    case DateTime.from_iso8601(date_string) do
-      {:ok, dt, _offset} ->
-        dt
-
-      _ ->
-        normalized = normalize_iso8601_offset(date_string)
-
-        if normalized == date_string do
-          nil
-        else
-          case DateTime.from_iso8601(normalized) do
-            {:ok, dt, _offset} -> dt
-            _ -> nil
-          end
-        end
-    end
-  end
-
-  defp normalize_iso8601_offset(date_string) do
-    Regex.replace(~r/([+-]\d{2})(\d{2})$/, date_string, "\\1:\\2")
-  end
-
-  defp parse_rfc2822(date_string) do
-    formats = [
-      "{RFC1123}",
-      "{RFC822}",
-      "{WDshort}, {D} {Mshort} {YYYY} {h24}:{m}:{s} {Z}",
-      "{WDshort}, {D} {Mshort} {YYYY} {h24}:{m} {Z}",
-      "{D} {Mshort} {YYYY} {h24}:{m}:{s} {Z}",
-      "{D} {Mshort} {YYYY} {h24}:{m} {Z}"
-    ]
-
-    Enum.find_value(formats, fn format ->
-      case Timex.parse(date_string, format) do
-        {:ok, dt} -> to_utc_datetime(dt)
-        _ -> nil
-      end
-    end)
-  rescue
-    _ -> nil
-  end
-
-  defp to_utc_datetime(%DateTime{} = dt) do
-    case DateTime.shift_zone(dt, "Etc/UTC") do
-      {:ok, utc_dt} -> utc_dt
-      _ -> nil
-    end
-  end
-
-  defp to_utc_datetime(%NaiveDateTime{} = ndt) do
-    case DateTime.from_naive(ndt, "Etc/UTC") do
-      {:ok, utc_dt} -> utc_dt
-      _ -> nil
-    end
-  end
-
-  defp to_utc_datetime(unix) when is_integer(unix) do
-    case DateTime.from_unix(unix) do
-      {:ok, dt} -> dt
-      _ -> nil
-    end
+    DateParser.parse(raw)
   end
 
   # --- Feed metadata extraction ---

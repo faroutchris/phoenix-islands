@@ -162,6 +162,21 @@ defmodule Dashboard.RSSTest do
       published_after = RSS.list_feed_entries(feed.id, published_after: ~U[2026-03-02 00:00:00Z])
       assert Enum.map(published_after, & &1.title) == ["With Enclosure"]
     end
+
+    test "upsert_feed_with_entries/3 skips weak entries and dedupes same-batch identities" do
+      feed = create_feed!("https://example.com/dedupe")
+
+      assert {:ok, _updated_feed} =
+               RSS.upsert_feed_with_entries(feed, %{}, [
+                 %{},
+                 %{guid: "dup-guid", title: "First Title", summary: "first"},
+                 %{guid: "dup-guid", title: "Second Title", summary: "second"}
+               ])
+
+      entries = RSS.list_feed_entries(feed.id)
+      assert length(entries) == 1
+      assert hd(entries).title == "First Title"
+    end
   end
 
   defp create_feed!(url) do

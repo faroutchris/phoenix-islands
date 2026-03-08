@@ -58,6 +58,9 @@ defmodule Dashboard.RSS.FeedEntry do
     feed_entry
     |> cast(attrs, @cast_fields)
     |> validate_required(@required_fields)
+    |> validate_inclusion(:identity_source, ["guid", "link", "fingerprint"])
+    |> validate_length(:identity_key, min: 1)
+    |> validate_length(:identity_hash, min: 1)
     |> assoc_constraint(:feed)
     |> unique_constraint(:identity_hash, name: :feed_entry_feed_id_identity_hash_index)
   end
