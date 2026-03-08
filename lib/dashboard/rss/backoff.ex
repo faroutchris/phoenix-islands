@@ -253,16 +253,18 @@ defmodule Dashboard.RSS.Backoff do
   end
 
   defp config(key) do
-    config = Application.get_env(:dashboard, __MODULE__, [])
-
     case key do
-      :default_interval -> Keyword.get(config, :default_interval, @default_interval)
-      :min_interval -> Keyword.get(config, :min_interval, @min_interval)
-      :max_interval -> Keyword.get(config, :max_interval, @max_interval)
-      :no_change_multiplier -> Keyword.get(config, :no_change_multiplier, @no_change_multiplier)
-      :error_base_interval -> Keyword.get(config, :error_base_interval, @error_base_interval)
-      :error_max_interval -> Keyword.get(config, :error_max_interval, @error_max_interval)
-      :jitter_percent -> Keyword.get(config, :jitter_percent, @jitter_percent)
+      :default_interval -> config_get(:default_interval, @default_interval)
+      :min_interval -> config_get(:min_interval, @min_interval)
+      :max_interval -> config_get(:max_interval, @max_interval)
+      :no_change_multiplier -> config_get(:no_change_multiplier, @no_change_multiplier)
+      :error_base_interval -> config_get(:error_base_interval, @error_base_interval)
+      :error_max_interval -> config_get(:error_max_interval, @error_max_interval)
+      :jitter_percent -> config_get(:jitter_percent, @jitter_percent)
     end
+  end
+
+  defp config_get(key, default) do
+    Application.get_env(:dashboard, __MODULE__, []) |> Keyword.get(key, default)
   end
 end

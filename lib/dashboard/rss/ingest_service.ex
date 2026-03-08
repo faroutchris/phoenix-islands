@@ -18,9 +18,6 @@ defmodule Dashboard.RSS.IngestService do
   alias Dashboard.RSS.Backoff
   alias Dashboard.HttpUtils
 
-  @http_timeout 30_000
-  @parse_timeout 30_000
-
   def update_feeds do
     RSS.list_feed(:due_for_update)
     |> Task.async_stream(&update_pipeline/1, max_concurrency: 10, timeout: 60_000)
@@ -239,29 +236,17 @@ defmodule Dashboard.RSS.IngestService do
   # --- Cadence estimation ---
 
   defp estimate_cadence(entries) when is_list(entries) do
-    timestamps =
-      entries
-      |> Enum.map(&extract_pub_date/1)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.sort(:desc)
-      |> Enum.take(10)
-
-    case timestamps do
-      [_ | _] = ts when length(ts) >= 2 ->
-        intervals =
-          ts
-          |> Enum.chunk_every(2, 1, :discard)
-          |> Enum.map(fn [a, b] -> DateTime.diff(a, b) end)
-          |> Enum.reject(&(&1 <= 0))
-
-        if intervals != [] do
-          div(Enum.sum(intervals), length(intervals))
-        else
-          nil
-        end
-
-      _ ->
-        nil
+    entries
+    |> Enum.map(&extract_pub_date/1)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.sort(:desc)
+    |> Enum.take(10)
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.map(fn [a, b] -> DateTime.diff(a, b) end)
+    |> Enum.reject(&(&1 <= 0))
+    |> case do
+      [] -> nil
+      intervals -> div(Enum.sum(intervals), length(intervals))
     end
   end
 
@@ -284,17 +269,17 @@ defmodule Dashboard.RSS.IngestService do
   end
 
   defp parse_rfc2822(date_string) do
-    # Basic RFC 2822 parsing — Timex or Calendar could be used for robustness
-    case Timex.parse(date_string, "{RFC1123}") do
-      {:ok, dt} ->
-        DateTime.from_naive!(Timex.to_naive_datetime(dt), "Etc/UTC")
+    formats = [
+      "{RFC1123}",
+      "{WDshort}, {D} {Mshort} {YYYY} {h24}:{m}:{s} {Z}"
+    ]
 
-      _ ->
-        case Timex.parse(date_string, "{WDshort}, {D} {Mshort} {YYYY} {h24}:{m}:{s} {Z}") do
-          {:ok, dt} -> DateTime.from_naive!(Timex.to_naive_datetime(dt), "Etc/UTC")
-          _ -> nil
-        end
-    end
+    Enum.find_value(formats, fn format ->
+      case Timex.parse(date_string, format) do
+        {:ok, dt} -> DateTime.from_naive!(Timex.to_naive_datetime(dt), "Etc/UTC")
+        _ -> nil
+      end
+    end)
   rescue
     _ -> nil
   end
@@ -331,17 +316,11 @@ defmodule Dashboard.RSS.IngestService do
   end
 
   defp get_feed(%Feed{} = feed) do
-    Task.Supervisor.async_nolink(Dashboard.TaskSupervisor, fn ->
-      FetchWorker.fetch_feed(feed)
-    end)
-    |> Task.await(@http_timeout)
+    FetchWorker.fetch_feed(feed)
   end
 
   defp parse_feed(%HTTPoison.Response{} = response) do
-    Task.Supervisor.async_nolink(Dashboard.TaskSupervisor, fn ->
-      Gluttony.parse_string(response.body)
-    end)
-    |> Task.await(@parse_timeout)
+    Gluttony.parse_string(response.body)
   end
 
   defp error_reason_string(:rate_limited), do: "Rate limited (429)"

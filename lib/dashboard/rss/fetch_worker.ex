@@ -26,12 +26,12 @@ defmodule Dashboard.RSS.FetchWorker do
     url = feed.canonical_url || feed.url
 
     headers =
-      %{}
-      |> HttpUtils.make_headers("If-Modified-Since", feed.last_modified)
-      |> HttpUtils.make_headers("If-None-Match", feed.etag)
-      |> Map.put("User-Agent", @user_agent)
-      |> Map.put("Accept-Encoding", "gzip, deflate")
-      |> Map.to_list()
+      [
+        {"User-Agent", @user_agent},
+        {"Accept-Encoding", "gzip, deflate"}
+      ]
+      |> add_header("If-Modified-Since", feed.last_modified)
+      |> add_header("If-None-Match", feed.etag)
 
     case HTTPoison.get(url, headers, recv_timeout: 15_000, timeout: 15_000) do
       {:ok, %HTTPoison.Response{} = response} ->
@@ -129,4 +129,7 @@ defmodule Dashboard.RSS.FetchWorker do
       _ -> response.body
     end
   end
+
+  defp add_header(headers, _name, nil), do: headers
+  defp add_header(headers, name, value), do: [{name, value} | headers]
 end

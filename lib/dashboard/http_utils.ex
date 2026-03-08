@@ -4,15 +4,7 @@ defmodule Dashboard.HttpUtils do
   """
 
   def matching_headers?(header1, header2) do
-    not is_nil(header2) and header1 == header2
-  end
-
-  def make_headers(%{} = headers, name, value) do
-    if value != nil do
-      Map.put(headers, name, value)
-    else
-      headers
-    end
+    header1 != nil and header1 == header2
   end
 
   @doc """
@@ -20,14 +12,9 @@ defmodule Dashboard.HttpUtils do
   Returns `nil` if the header is not present.
   """
   def extract_header(header_name, %HTTPoison.Response{} = response) do
-    response.headers
-    |> Enum.find(fn {header, _value} ->
-      String.downcase(header, :default) == header_name
+    Enum.find_value(response.headers, fn {header, value} ->
+      if String.downcase(header, :default) == header_name, do: value
     end)
-    |> case do
-      {_header, value} -> value
-      nil -> nil
-    end
   end
 
   @doc """
