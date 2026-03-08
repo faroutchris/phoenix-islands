@@ -154,6 +154,34 @@ defmodule Dashboard.RSS.IngestServiceTest do
     assert %DateTime{} = updated.next_fetch
   end
 
+  test "update_pipeline/1 emits entry persistence telemetry" do
+    handler_id = "rss-entries-persist-#{System.unique_integer([:positive])}"
+    test_pid = self()
+
+    :ok =
+      :telemetry.attach(
+        handler_id,
+        [:dashboard, :rss, :entries_persist],
+        fn _event, measurements, metadata, _config ->
+          send(test_pid, {:entries_persist, measurements, metadata})
+        end,
+        nil
+      )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+
+    feed = create_feed!("test://entries")
+
+    assert {:ok, %Feed{} = updated} = IngestService.update_pipeline(feed)
+
+    assert_receive {:entries_persist, measurements, metadata}
+    assert metadata.feed_id == updated.id
+    assert measurements.entries_inserted >= 1
+    assert measurements.entries_updated >= 0
+    assert measurements.enclosures_upserted >= 1
+    assert measurements.enclosures_deleted >= 0
+  end
+
   defp create_feed!(url, attrs \\ %{}) do
     defaults = %{
       title: "Seed Feed",

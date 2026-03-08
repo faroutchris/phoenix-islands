@@ -2,10 +2,9 @@ defmodule Dashboard.RSSTest do
   use Dashboard.DataCase
 
   alias Dashboard.RSS
+  alias Dashboard.RSS.Feed
 
   describe "feed" do
-    alias Dashboard.RSS.Feed
-
     import Dashboard.RSSFixtures
 
     @invalid_attrs %{
@@ -94,5 +93,79 @@ defmodule Dashboard.RSSTest do
       feed = feed_fixture()
       assert %Ecto.Changeset{} = RSS.change_feed(feed)
     end
+  end
+
+  describe "feed entries queries" do
+    test "list_feed_entries/2 supports pagination and search" do
+      feed = create_feed!("https://example.com/entries")
+
+      assert {:ok, _updated_feed} =
+               RSS.upsert_feed_with_entries(feed, %{}, [
+                 %{
+                   guid: "a",
+                   title: "Alpha",
+                   summary: "hello",
+                   published_at: ~U[2026-03-01 10:00:00Z]
+                 },
+                 %{
+                   guid: "b",
+                   title: "Bravo",
+                   summary: "world",
+                   published_at: ~U[2026-03-02 10:00:00Z]
+                 },
+                 %{
+                   guid: "c",
+                   title: "Charlie",
+                   summary: "hello world",
+                   published_at: ~U[2026-03-03 10:00:00Z]
+                 }
+               ])
+
+      page1 = RSS.list_feed_entries(feed.id, page: 1, page_size: 2)
+      page2 = RSS.list_feed_entries(feed.id, page: 2, page_size: 2)
+
+      assert length(page1) == 2
+      assert length(page2) == 1
+
+      search = RSS.list_feed_entries(feed.id, search: "hello")
+      assert Enum.map(search, & &1.title) |> Enum.sort() == ["Alpha", "Charlie"]
+    end
+
+    test "list_feed_entries/2 filters by enclosures and published range" do
+      feed = create_feed!("https://example.com/filters")
+
+      assert {:ok, _updated_feed} =
+               RSS.upsert_feed_with_entries(feed, %{}, [
+                 %{
+                   guid: "with-enclosure",
+                   title: "With Enclosure",
+                   published_at: ~U[2026-03-02 10:00:00Z],
+                   enclosure: %{
+                     url: "https://cdn.example/media.mp3",
+                     type: "audio/mpeg",
+                     length: "12"
+                   }
+                 },
+                 %{
+                   guid: "without-enclosure",
+                   title: "Without Enclosure",
+                   published_at: ~U[2026-03-01 10:00:00Z]
+                 }
+               ])
+
+      with_enclosures = RSS.list_feed_entries(feed.id, has_enclosures: true)
+      without_enclosures = RSS.list_feed_entries(feed.id, has_enclosures: false)
+
+      assert Enum.map(with_enclosures, & &1.title) == ["With Enclosure"]
+      assert Enum.map(without_enclosures, & &1.title) == ["Without Enclosure"]
+
+      published_after = RSS.list_feed_entries(feed.id, published_after: ~U[2026-03-02 00:00:00Z])
+      assert Enum.map(published_after, & &1.title) == ["With Enclosure"]
+    end
+  end
+
+  defp create_feed!(url) do
+    {:ok, feed} = RSS.create_feed(%{title: "Feed", url: url})
+    feed
   end
 end

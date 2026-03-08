@@ -85,17 +85,49 @@ defmodule Dashboard.RSS do
     end)
     |> Repo.transaction()
     |> case do
-      {:ok, %{feed: updated_feed}} -> {:ok, updated_feed}
-      {:error, _step, reason, _changes} -> {:error, reason}
+      {:ok, %{feed: updated_feed, entries: stats}} ->
+        :telemetry.execute(
+          [:dashboard, :rss, :entries_persist],
+          %{
+            entries_inserted: stats.entries_inserted,
+            entries_updated: stats.entries_updated,
+            enclosures_upserted: stats.enclosures_upserted,
+            enclosures_deleted: stats.enclosures_deleted
+          },
+          %{feed_id: updated_feed.id}
+        )
+
+        {:ok, updated_feed}
+
+      {:error, _step, reason, _changes} ->
+        {:error, reason}
     end
   end
 
   def list_feed_entries(feed_id) when is_binary(feed_id) do
-    from(e in FeedEntry,
-      where: e.feed_id == ^feed_id,
-      order_by: [desc: e.published_at, desc: e.inserted_at],
-      preload: [:enclosures]
-    )
+    list_feed_entries(feed_id, [])
+  end
+
+  def list_feed_entries(feed_id, opts) when is_binary(feed_id) and is_list(opts) do
+    page = Keyword.get(opts, :page, 1)
+    page_size = Keyword.get(opts, :page_size, 20)
+    search = Keyword.get(opts, :search)
+    has_enclosures = Keyword.get(opts, :has_enclosures)
+    published_after = Keyword.get(opts, :published_after)
+    published_before = Keyword.get(opts, :published_before)
+
+    offset = max(page - 1, 0) * page_size
+
+    FeedEntry
+    |> where([e], e.feed_id == ^feed_id)
+    |> maybe_filter_search(search)
+    |> maybe_filter_has_enclosures(has_enclosures)
+    |> maybe_filter_published_after(published_after)
+    |> maybe_filter_published_before(published_before)
+    |> order_by([e], desc: e.published_at, desc: e.inserted_at)
+    |> limit(^page_size)
+    |> offset(^offset)
+    |> preload([:enclosures])
     |> Repo.all()
   end
 
@@ -187,8 +219,24 @@ defmodule Dashboard.RSS do
       |> Enum.reject(&is_nil/1)
 
     if normalized_entries == [] do
-      {:ok, []}
+      {:ok,
+       %{
+         entries_inserted: 0,
+         entries_updated: 0,
+         enclosures_upserted: 0,
+         enclosures_deleted: 0
+       }}
     else
+      hashes = Enum.map(normalized_entries, & &1.identity_hash)
+
+      existing_hashes =
+        from(e in FeedEntry,
+          where: e.feed_id == ^feed_id and e.identity_hash in ^hashes,
+          select: e.identity_hash
+        )
+        |> repo.all()
+        |> MapSet.new()
+
       insert_rows = Enum.map(normalized_entries, &Map.take(&1, feed_entry_insert_fields()))
 
       {_, returned_entries} =
@@ -204,11 +252,25 @@ defmodule Dashboard.RSS do
         normalized_entries
         |> Map.new(fn entry -> {entry.identity_hash, entry.enclosures} end)
 
-      Enum.each(returned_entries, fn row ->
-        replace_enclosures(repo, row.id, Map.get(enclosure_map, row.identity_hash, []), now)
-      end)
+      enclosure_stats =
+        Enum.reduce(returned_entries, %{upserted: 0, deleted: 0}, fn row, acc ->
+          stats =
+            replace_enclosures(repo, row.id, Map.get(enclosure_map, row.identity_hash, []), now)
 
-      {:ok, returned_entries}
+          %{upserted: acc.upserted + stats.upserted, deleted: acc.deleted + stats.deleted}
+        end)
+
+      entries_total = length(normalized_entries)
+      entries_updated = Enum.count(hashes, &MapSet.member?(existing_hashes, &1))
+      entries_inserted = entries_total - entries_updated
+
+      {:ok,
+       %{
+         entries_inserted: entries_inserted,
+         entries_updated: entries_updated,
+         enclosures_upserted: enclosure_stats.upserted,
+         enclosures_deleted: enclosure_stats.deleted
+       }}
     end
   end
 
@@ -328,7 +390,7 @@ defmodule Dashboard.RSS do
         )
       end
 
-    repo.delete_all(delete_query)
+    {deleted_count, _} = repo.delete_all(delete_query)
 
     if enclosures != [] do
       rows =
@@ -343,14 +405,53 @@ defmodule Dashboard.RSS do
           }
         end)
 
-      repo.insert_all(
-        FeedEntryEnclosure,
-        rows,
-        on_conflict: {:replace, [:media_type, :length_bytes, :updated_at]},
-        conflict_target: [:feed_entry_id, :url]
-      )
+      {upserted_count, _} =
+        repo.insert_all(
+          FeedEntryEnclosure,
+          rows,
+          on_conflict: {:replace, [:media_type, :length_bytes, :updated_at]},
+          conflict_target: [:feed_entry_id, :url]
+        )
+
+      %{deleted: deleted_count, upserted: upserted_count}
+    else
+      %{deleted: deleted_count, upserted: 0}
     end
   end
+
+  defp maybe_filter_search(query, nil), do: query
+  defp maybe_filter_search(query, ""), do: query
+
+  defp maybe_filter_search(query, search) when is_binary(search) do
+    pattern = "%#{search}%"
+    where(query, [e], like(e.title, ^pattern) or like(e.summary, ^pattern))
+  end
+
+  defp maybe_filter_has_enclosures(query, nil), do: query
+
+  defp maybe_filter_has_enclosures(query, true) do
+    enclosure_entry_ids = from(en in FeedEntryEnclosure, select: en.feed_entry_id)
+    where(query, [e], e.id in subquery(enclosure_entry_ids))
+  end
+
+  defp maybe_filter_has_enclosures(query, false) do
+    enclosure_entry_ids = from(en in FeedEntryEnclosure, select: en.feed_entry_id)
+    where(query, [e], e.id not in subquery(enclosure_entry_ids))
+  end
+
+  defp maybe_filter_published_after(query, nil), do: query
+
+  defp maybe_filter_published_after(query, %DateTime{} = dt),
+    do: where(query, [e], e.published_at >= ^dt)
+
+  defp maybe_filter_published_after(query, _), do: query
+
+  defp maybe_filter_published_before(query, nil), do: query
+
+  defp maybe_filter_published_before(query, %DateTime{} = dt),
+    do: where(query, [e], e.published_at <= ^dt)
+
+  defp maybe_filter_published_before(query, _), do: query
 
   defp build_fingerprint(title, published_at, author) do
     published_string =
