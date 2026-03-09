@@ -55,7 +55,7 @@
       <% @entry.summary && String.trim(@entry.summary) != "" -> %>
         {Phoenix.HTML.raw(HtmlSanitizeEx.basic_html(@entry.summary))}
       <% true -> %>
-        No content available for this entry.
+        No content
     <% end %>
   </section>
 </article>

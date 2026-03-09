@@ -19,6 +19,7 @@ defmodule DashboardWeb.Router do
 
     get "/", PageController, :home
     get "/list", PageController, :list
+    post "/list", PageController, :create_feed
     get "/list/:feed_id/entries", PageController, :entries
     get "/list/:feed_id/entries/:entry_id", PageController, :entry
   end

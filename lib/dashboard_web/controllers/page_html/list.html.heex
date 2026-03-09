@@ -1,10 +1,37 @@
-<.island module="hello" />
-
 <hr />
 <div class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
   <div class="mb-6">
     <h1 class="text-2xl font-semibold tracking-tight text-base-content">Feeds</h1>
     <p class="mt-1 text-sm text-base-content/70">All subscribed RSS feeds</p>
+  </div>
+
+  <div class="mb-8 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-6">
+    <h2 class="text-base font-semibold text-base-content">Add feed</h2>
+    <% form = to_form(@changeset) %>
+    <.form
+      data-swup-form
+      for={form}
+      id="feed-form"
+      action={~p"/list"}
+      method="post"
+      class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]"
+    >
+      <.input
+        field={form[:url]}
+        label="Feed URL"
+        placeholder="https://example.com/feed.xml"
+        type="url"
+        required
+      />
+      <div class="flex items-end">
+        <button
+          type="submit"
+          class="w-full rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 transition-opacity hover:opacity-90"
+        >
+          Add feed
+        </button>
+      </div>
+    </.form>
   </div>
 
   <div class="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">

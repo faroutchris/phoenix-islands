@@ -17,7 +17,7 @@
       <table class="min-w-full divide-y divide-base-200 text-left text-sm">
         <thead class="bg-base-200/50 text-xs font-semibold uppercase tracking-wide text-base-content/70">
           <tr>
-            <th scope="col" class="px-4 py-3">Title</th>
+            <th scope="col" colspan="2" class="px-4 py-3">Title</th>
             <th scope="col" class="px-4 py-3">Published</th>
             <th scope="col" class="px-4 py-3">Link</th>
           </tr>
@@ -25,6 +25,26 @@
         <tbody class="divide-y divide-base-200">
           <%= for entry <- @entries do %>
             <tr class="transition-colors hover:bg-base-200/40">
+              <td>
+                <.island
+                  module="playbutton"
+                  props={
+                    %{
+                      media: %{
+                        id: entry.id,
+                        feedId: @feed.id,
+                        title: entry.title || "(untitled)",
+                        feedTitle: @feed.title,
+                        image: @feed.favicon,
+                        attachments:
+                          Enum.map(entry.enclosures, fn e ->
+                            %{url: e.url, mimeType: e.media_type}
+                          end)
+                      }
+                    }
+                  }
+                />
+              </td>
               <td class="px-4 py-3 font-medium text-base-content">
                 <a
                   href={~p"/list/#{@feed.id}/entries/#{entry.id}"}
@@ -67,5 +87,35 @@
         </tbody>
       </table>
     </div>
+  </div>
+
+  <div class="mt-6 flex items-center justify-between">
+    <%= if @has_previous_page? do %>
+      <a
+        href={~p"/list/#{@feed.id}/entries?page=#{@page - 1}"}
+        class="rounded-lg border border-base-300 px-3 py-2 text-sm font-medium text-base-content/80 transition-colors hover:bg-base-200"
+      >
+        Previous
+      </a>
+    <% else %>
+      <span class="rounded-lg border border-base-300 px-3 py-2 text-sm text-base-content/40">
+        Previous
+      </span>
+    <% end %>
+
+    <span class="text-sm text-base-content/70">Page {@page}</span>
+
+    <%= if @has_next_page? do %>
+      <a
+        href={~p"/list/#{@feed.id}/entries?page=#{@page + 1}"}
+        class="rounded-lg border border-base-300 px-3 py-2 text-sm font-medium text-base-content/80 transition-colors hover:bg-base-200"
+      >
+        Next
+      </a>
+    <% else %>
+      <span class="rounded-lg border border-base-300 px-3 py-2 text-sm text-base-content/40">
+        Next
+      </span>
+    <% end %>
   </div>
 </div>

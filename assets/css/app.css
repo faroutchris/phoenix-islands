@@ -107,3 +107,5 @@
 }
 
 /* This file is for your main application CSS */
+
+body {   --swup-fade-theme-duration: 0.2s; }
