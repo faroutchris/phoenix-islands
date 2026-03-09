@@ -8,13 +8,13 @@
       {assigns[:page_title]}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
-    <script src="https://unpkg.com/swup@4">
+    <script defer src="https://unpkg.com/swup@4">
     </script>
-    <script src="https://unpkg.com/@swup/fade-theme@2">
+    <script defer src="https://unpkg.com/@swup/fade-theme@2">
     </script>
-    <script src="https://unpkg.com/@swup/preload-plugin@3">
+    <script defer src="https://unpkg.com/@swup/preload-plugin@3">
     </script>
-    <script src="https://unpkg.com/@swup/forms-plugin@3">
+    <script defer src="https://unpkg.com/@swup/forms-plugin@3">
     </script>
     <script defer phx-track-static type="module" src={~p"/assets/js/app.js"}>
     </script>
@@ -32,17 +32,6 @@
         if (!document.documentElement.hasAttribute("data-theme")) {
           setTheme(localStorage.getItem("phx:theme") || "system");
         }
-        window.addEventListener("storage", (e) => e.key === "phx:theme" && setTheme(e.newValue || "system"));
-        
-        document.addEventListener("DOMContentLoaded", () => {
-          document
-            .querySelectorAll("button[data-phx-theme]")
-            .forEach((el) => {
-              el.addEventListener("click", () => {
-                setTheme(el.dataset.phxTheme)
-              })
-            })
-        })
       })();
     </script>
   </head>

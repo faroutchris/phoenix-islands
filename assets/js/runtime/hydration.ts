@@ -1,16 +1,22 @@
-export interface ClientConfig<T> {
-  resolve: (path: string, resolver?: (path: string, ext: string) => Promise<T>) => Promise<T>
-  hydrate: (component: T, options: { target: HTMLElement; props: any }) => void,
-  destroy: (component: T) => void
+export interface ClientConfig<ResolvedComponent, MountedComponent> {
+  resolve: (
+    path: string,
+    resolver?: (path: string, ext: string) => Promise<ResolvedComponent>,
+  ) => Promise<ResolvedComponent>;
+  hydrate: (
+    component: ResolvedComponent,
+    options: { target: HTMLElement; props: any },
+  ) => MountedComponent;
+  destroy: (component: MountedComponent) => void | Promise<void>;
 }
 
 const resetInputs = ({ element }: { element: HTMLElement }) => {
   return new Promise<void>((resolve) => {
     if (
       window.performance?.navigation?.type ===
-      performance.navigation.TYPE_RELOAD ||
+        performance.navigation.TYPE_RELOAD ||
       window.performance?.navigation?.type ===
-      performance.navigation.TYPE_BACK_FORWARD
+        performance.navigation.TYPE_BACK_FORWARD
     ) {
       // reset various inputs
       element.querySelectorAll<HTMLInputElement>("input").forEach((el) => {
@@ -106,54 +112,64 @@ export const safeJsonParse = (json: string) => {
   }
 };
 
-export function init<T>({ resolve, hydrate, destroy }: ClientConfig<T>) {
+export function init<ResolvedComponent, MountedComponent>({
+  resolve,
+  hydrate,
+  destroy,
+}: ClientConfig<ResolvedComponent, MountedComponent>) {
   class IslandRoot extends HTMLElement {
-    private cleanupMediaListener?: any
+    private mountedComponent: MountedComponent | null = null;
+    private cleanupMediaListener?: any;
 
     async connectedCallback() {
       // Firefox caches client side inputs so we make sure to reset them
       // Chromium based browsers behave "correctly" (but not according to w3 spec)
-      await resetInputs({ element: this })
+      await resetInputs({ element: this });
 
-      if (this.hasAttribute('data-lazy')) {
-        await visible({ element: this })
+      if (this.hasAttribute("data-lazy")) {
+        await visible({ element: this });
       }
 
-      if (this.hasAttribute('data-media')) {
-        const query = this.getAttribute('data-media') ?? ''
-        let component: T | null = null;
+      if (this.hasAttribute("data-media")) {
+        const query = this.getAttribute("data-media") ?? "";
         this.cleanupMediaListener = media({
           query,
           onMatch: async () => {
-            component = await this.hydrate()
+            if (!this.mountedComponent) {
+              this.mountedComponent = await this.mount();
+            }
           },
           onUnmatch: async () => {
-            if (component) {
-              destroy(component)
-              component = null
-            }
-          }
-        })
+            await this.unmount();
+          },
+        });
       } else {
-        await this.hydrate()
+        if (!this.mountedComponent) {
+          this.mountedComponent = await this.mount();
+        }
       }
     }
 
     disconnectedCallback() {
-      this.cleanupMediaListener?.()
+      this.cleanupMediaListener?.();
+      this.unmount();
     }
 
-    async hydrate() {
-      const src = this.getAttribute('data-module') ?? ''
-      const propsData = this.getAttribute('data-props')
-      const props = propsData ? safeJsonParse(propsData) : {}
+    async mount() {
+      const src = this.getAttribute("data-module") ?? "";
+      const propsData = this.getAttribute("data-props");
+      const props = propsData ? safeJsonParse(propsData) : {};
 
-      const Component = await resolve(src)
+      const Component = await resolve(src);
 
-      hydrate(Component, { target: this, props })
+      return hydrate(Component, { target: this, props });
+    }
 
-      return Component
+    async unmount() {
+      if (!this.mountedComponent) return;
+      await destroy(this.mountedComponent);
+      this.mountedComponent = null;
     }
   }
-  customElements.define('island-root', IslandRoot)
+  customElements.define("island-root", IslandRoot);
 }

@@ -1,8 +1,8 @@
 import components from "virtual:components";
 import { init } from "./runtime/hydration";
-import { hydrate, Component, unmount } from "svelte";
+import { hydrate, type Component, unmount } from "svelte";
 
-init<Component>({
+init<Component<any, Record<string, any>>, Record<string, any>>({
   resolve: async (name) => {
     const importFn = components[name];
     if (!importFn) throw new Error(`Component not found: ${name}`);
@@ -10,10 +10,10 @@ init<Component>({
     return module.default;
   },
   hydrate: (Component, { target, props }) => {
-    hydrate(Component, { target, props });
+    return hydrate(Component, { target, props });
   },
   destroy: (component) => {
-    unmount(component);
+    void unmount(component);
   },
 });
 
@@ -29,7 +29,7 @@ document.querySelectorAll("[role=alert][data-flash]").forEach((el) => {
 declare global {
   interface Window {
     Swup: any;
-    SwupFadeTheme: any;
+    // SwupFadeTheme: any;
     SwupPreloadPlugin: any;
     SwupFormsPlugin: any;
   }
@@ -37,7 +37,7 @@ declare global {
 
 const swup = new window.Swup({
   plugins: [
-    new window.SwupFadeTheme(),
+    // new window.SwupFadeTheme(),
     new window.SwupPreloadPlugin(),
     new window.SwupFormsPlugin(),
   ],

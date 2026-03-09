@@ -5,6 +5,7 @@ defmodule DashboardWeb.Router do
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
+    plug DashboardWeb.Plugs.AssignSidebarFeeds
     plug :put_root_layout, html: {DashboardWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers

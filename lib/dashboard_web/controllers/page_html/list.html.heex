@@ -1,89 +1,94 @@
-<hr />
-<div class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
-  <div class="mb-6">
-    <h1 class="text-2xl font-semibold tracking-tight text-base-content">Feeds</h1>
-    <p class="mt-1 text-sm text-base-content/70">All subscribed RSS feeds</p>
-  </div>
+<Layouts.app
+  flash={@flash}
+  current_scope={assigns[:current_scope]}
+  sidebar_feeds={assigns[:sidebar_feeds] || []}
+>
+  <div class="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:px-8">
+    <div class="mb-6">
+      <h1 class="text-2xl font-semibold tracking-tight text-base-content">Feeds</h1>
+      <p class="mt-1 text-sm text-base-content/70">All subscribed RSS feeds</p>
+    </div>
 
-  <div class="mb-8 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-6">
-    <h2 class="text-base font-semibold text-base-content">Add feed</h2>
-    <% form = to_form(@changeset) %>
-    <.form
-      data-swup-form
-      for={form}
-      id="feed-form"
-      action={~p"/list"}
-      method="post"
-      class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]"
-    >
-      <.input
-        field={form[:url]}
-        label="Feed URL"
-        placeholder="https://example.com/feed.xml"
-        type="url"
-        required
-      />
-      <div class="flex items-end">
-        <button
-          type="submit"
-          class="w-full rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 transition-opacity hover:opacity-90"
-        >
-          Add feed
-        </button>
-      </div>
-    </.form>
-  </div>
+    <div class="mb-8 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm sm:p-6">
+      <h2 class="text-base font-semibold text-base-content">Add feed</h2>
+      <% form = to_form(@changeset) %>
+      <.form
+        data-swup-form
+        for={form}
+        id="feed-form"
+        action={~p"/list"}
+        method="post"
+        class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]"
+      >
+        <.input
+          field={form[:url]}
+          label="Feed URL"
+          placeholder="https://example.com/feed.xml"
+          type="url"
+          required
+        />
+        <div class="flex items-end">
+          <button
+            type="submit"
+            class="w-full rounded-lg bg-base-content px-4 py-2.5 text-sm font-medium text-base-100 transition-opacity hover:opacity-90"
+          >
+            Add feed
+          </button>
+        </div>
+      </.form>
+    </div>
 
-  <div class="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">
-    <div class="overflow-x-auto">
-      <table class="min-w-full divide-y divide-base-200 text-left text-sm">
-        <thead class="bg-base-200/50 text-xs font-semibold uppercase tracking-wide text-base-content/70">
-          <tr>
-            <th scope="col" class="px-4 py-3">Title</th>
-            <th scope="col" class="px-4 py-3">Status</th>
-            <th scope="col" class="px-4 py-3">Updated</th>
-            <th scope="col" class="px-4 py-3">Entries</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-base-200">
-          <%= for feed <- @feeds do %>
-            <tr class="transition-colors hover:bg-base-200/40">
-              <td class="px-4 py-3 font-medium text-base-content">
-                <a
-                  href={~p"/list/#{feed.id}/entries"}
-                  class="underline decoration-base-300 underline-offset-2 hover:decoration-base-content"
-                >
-                  {feed.title}
-                </a>
-              </td>
-              <td class="px-4 py-3">
-                <span class="inline-flex rounded-full bg-base-200 px-2.5 py-1 text-xs font-medium capitalize text-base-content/80">
-                  {feed.status}
-                </span>
-              </td>
-              <td class="px-4 py-3 text-base-content/70">
-                {Calendar.strftime(feed.updated_at, "%Y-%m-%d %H:%M")}
-              </td>
-              <td class="px-4 py-3">
-                <a
-                  href={~p"/list/#{feed.id}/entries"}
-                  class="text-sm font-medium text-base-content/80 underline decoration-base-300 underline-offset-2 hover:decoration-base-content"
-                >
-                  View entries
-                </a>
-              </td>
-            </tr>
-          <% end %>
-
-          <%= if @feeds == [] do %>
+    <div class="overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-base-200 text-left text-sm">
+          <thead class="bg-base-200/50 text-xs font-semibold uppercase tracking-wide text-base-content/70">
             <tr>
-              <td colspan="4" class="px-4 py-8 text-center text-base-content/60">
-                No feeds found.
-              </td>
+              <th scope="col" class="px-4 py-3">Title</th>
+              <th scope="col" class="px-4 py-3">Status</th>
+              <th scope="col" class="px-4 py-3">Updated</th>
+              <th scope="col" class="px-4 py-3">Entries</th>
             </tr>
-          <% end %>
-        </tbody>
-      </table>
+          </thead>
+          <tbody class="divide-y divide-base-200">
+            <%= for feed <- @sidebar_feeds do %>
+              <tr class="transition-colors hover:bg-base-200/40">
+                <td class="px-4 py-3 font-medium text-base-content">
+                  <a
+                    href={~p"/list/#{feed.id}/entries"}
+                    class="underline decoration-base-300 underline-offset-2 hover:decoration-base-content"
+                  >
+                    {feed.title}
+                  </a>
+                </td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex rounded-full bg-base-200 px-2.5 py-1 text-xs font-medium capitalize text-base-content/80">
+                    {feed.status}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-base-content/70">
+                  {Calendar.strftime(feed.updated_at, "%Y-%m-%d %H:%M")}
+                </td>
+                <td class="px-4 py-3">
+                  <a
+                    href={~p"/list/#{feed.id}/entries"}
+                    class="text-sm font-medium text-base-content/80 underline decoration-base-300 underline-offset-2 hover:decoration-base-content"
+                  >
+                    View entries
+                  </a>
+                </td>
+              </tr>
+            <% end %>
+
+            <%= if @sidebar_feeds == [] do %>
+              <tr>
+                <td colspan="4" class="px-4 py-8 text-center text-base-content/60">
+                  No feeds found.
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
-</div>
+</Layouts.app>

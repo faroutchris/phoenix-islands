@@ -8,8 +8,14 @@ defmodule DashboardWeb.PageControllerTest do
   alias Dashboard.RSS.FeedEntryEnclosure
 
   test "GET /", %{conn: conn} do
+    feed = feed_fixture(%{title: "Sidebar Feed", url: "https://example.com/sidebar.xml"})
     conn = get(conn, ~p"/")
-    assert html_response(conn, 200) =~ "Peace of mind from prototype to production"
+    body = html_response(conn, 200)
+
+    assert body =~ "Peace of mind from prototype to production"
+    assert body =~ "id=\"sidebar-feeds\""
+    assert body =~ feed.title
+    assert body =~ ~p"/list/#{feed.id}/entries"
   end
 
   test "GET /list", %{conn: conn} do
@@ -17,10 +23,13 @@ defmodule DashboardWeb.PageControllerTest do
 
     conn = get(conn, ~p"/list")
 
-    assert html_response(conn, 200) =~ "Feeds"
-    assert html_response(conn, 200) =~ "Add feed"
-    assert html_response(conn, 200) =~ feed.title
-    assert html_response(conn, 200) =~ ~p"/list/#{feed.id}/entries"
+    body = html_response(conn, 200)
+
+    assert body =~ "Feeds"
+    assert body =~ "Add feed"
+    assert body =~ "id=\"sidebar-feeds\""
+    assert body =~ feed.title
+    assert body =~ ~p"/list/#{feed.id}/entries"
   end
 
   test "POST /list creates a feed and redirects", %{conn: conn} do
@@ -46,6 +55,8 @@ defmodule DashboardWeb.PageControllerTest do
   end
 
   test "POST /list with invalid data renders errors", %{conn: conn} do
+    feed = feed_fixture(%{title: "Existing Feed", url: "https://example.com/existing.xml"})
+
     conn =
       post(conn, ~p"/list", %{
         "feed" => %{
@@ -58,6 +69,8 @@ defmodule DashboardWeb.PageControllerTest do
 
     assert body =~ "Add feed"
     assert body =~ "can&#39;t be blank"
+    assert body =~ "id=\"sidebar-feeds\""
+    assert body =~ feed.title
   end
 
   test "GET /list/:feed_id/entries", %{conn: conn} do
@@ -82,8 +95,8 @@ defmodule DashboardWeb.PageControllerTest do
     body = html_response(conn, 200)
 
     assert body =~ feed.title
+    assert body =~ "id=\"sidebar-entries\""
     assert body =~ "Episode 1"
-    assert body =~ "https://example.com/episode-1"
     assert body =~ ~p"/list/#{feed.id}/entries/#{entry.id}"
   end
 

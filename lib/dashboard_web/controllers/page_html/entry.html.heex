@@ -1,61 +1,111 @@
-<article class="mx-auto max-w-3xl px-4 py-10 sm:px-6 lg:px-8">
-  <nav class="mb-6 text-sm text-base-content/70">
-    <a
-      href={~p"/list/#{@feed.id}/entries"}
-      class="underline decoration-base-300 underline-offset-2 hover:decoration-base-content"
-    >
-      Back to entries
-    </a>
-  </nav>
+<Layouts.app
+  flash={@flash}
+  current_scope={assigns[:current_scope]}
+  sidebar_feeds={assigns[:sidebar_feeds] || []}
+  sidebar_entries={@entries}
+  selected_feed_id={@feed.id}
+  selected_entry_id={@entry.id}
+>
+  <article class="mx-auto max-w-4xl">
+    <header class="border-b border-base-300 pb-6">
+      <p class="text-xs uppercase tracking-[0.18em] text-base-content/60">Article</p>
+      <h1 class="mt-2 text-3xl font-semibold tracking-tight text-base-content">
+        {@entry.title || "(untitled)"}
+      </h1>
+      <p class="mt-2 text-sm text-base-content/60">
+        <%= if @entry.published_at do %>
+          Published {Calendar.strftime(@entry.published_at, "%Y-%m-%d %H:%M")}
+        <% else %>
+          Publication date unavailable
+        <% end %>
+      </p>
+      <div class="mt-4">
+        <.island
+          module="playbutton"
+          props={
+            %{
+              media: %{
+                id: @entry.id,
+                feedId: @feed.id,
+                title: @entry.title || "(untitled)",
+                feedTitle: @feed.title,
+                image: @feed.favicon,
+                attachments:
+                  Enum.map(@entry.enclosures, fn enclosure ->
+                    %{url: enclosure.url, mimeType: enclosure.media_type}
+                  end)
+              }
+            }
+          }
+        />
+      </div>
+    </header>
 
-  <header class="mb-8">
-    <p class="text-xs uppercase tracking-wide text-base-content/60">Article</p>
-    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-base-content">
-      {@entry.title || "(untitled)"}
-    </h1>
-    <p class="mt-2 text-sm text-base-content/60">
-      <%= if @entry.published_at do %>
-        Published {Calendar.strftime(@entry.published_at, "%Y-%m-%d %H:%M")}
-      <% else %>
-        Publication date unavailable
-      <% end %>
-    </p>
-  </header>
-
-  <% media_enclosure =
-    Enum.find(
-      @entry.enclosures,
-      &(&1.media_type && String.starts_with?(&1.media_type, "audio/"))
-    ) ||
+    <% media_enclosure =
       Enum.find(
         @entry.enclosures,
-        &(&1.media_type && String.starts_with?(&1.media_type, "video/"))
-      ) %>
+        &(&1.media_type && String.starts_with?(&1.media_type, "audio/"))
+      ) ||
+        Enum.find(
+          @entry.enclosures,
+          &(&1.media_type && String.starts_with?(&1.media_type, "video/"))
+        ) %>
 
-  <%= if media_enclosure && String.starts_with?(media_enclosure.media_type || "", "audio/") do %>
-    <div class="mb-6 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
-      <audio controls preload="none" class="w-full">
-        <source src={media_enclosure.url} type={media_enclosure.media_type} />
-      </audio>
-    </div>
-  <% end %>
-
-  <%= if media_enclosure && String.starts_with?(media_enclosure.media_type || "", "video/") do %>
-    <div class="mb-6 overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">
-      <video controls preload="metadata" class="aspect-video w-full bg-black">
-        <source src={media_enclosure.url} type={media_enclosure.media_type} />
-      </video>
-    </div>
-  <% end %>
-
-  <section class="prose prose-invert">
-    <%= cond do %>
-      <% @entry.content && String.trim(@entry.content) != "" -> %>
-        {Phoenix.HTML.raw(HtmlSanitizeEx.basic_html(@entry.content))}
-      <% @entry.summary && String.trim(@entry.summary) != "" -> %>
-        {Phoenix.HTML.raw(HtmlSanitizeEx.basic_html(@entry.summary))}
-      <% true -> %>
-        No content
+    <%= if media_enclosure && String.starts_with?(media_enclosure.media_type || "", "audio/") do %>
+      <div class="mt-6 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
+        <audio controls preload="none" class="w-full">
+          <source src={media_enclosure.url} type={media_enclosure.media_type} />
+        </audio>
+      </div>
     <% end %>
-  </section>
-</article>
+
+    <%= if media_enclosure && String.starts_with?(media_enclosure.media_type || "", "video/") do %>
+      <div class="mt-6 overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">
+        <video controls preload="metadata" class="aspect-video w-full bg-black">
+          <source src={media_enclosure.url} type={media_enclosure.media_type} />
+        </video>
+      </div>
+    <% end %>
+
+    <section class="prose mt-8 max-w-none">
+      <%= cond do %>
+        <% @entry.content && String.trim(@entry.content) != "" -> %>
+          {Phoenix.HTML.raw(HtmlSanitizeEx.basic_html(@entry.content))}
+        <% @entry.summary && String.trim(@entry.summary) != "" -> %>
+          {Phoenix.HTML.raw(HtmlSanitizeEx.basic_html(@entry.summary))}
+        <% true -> %>
+          No content
+      <% end %>
+    </section>
+
+    <div class="mt-8 flex items-center justify-between rounded-xl border border-base-300 bg-base-100 px-4 py-3 text-sm">
+      <%= if @has_previous_page? do %>
+        <a
+          href={~p"/list/#{@feed.id}/entries/#{@entry.id}?page=#{@page - 1}"}
+          class="rounded-lg border border-base-300 px-3 py-2 font-medium text-base-content/80 transition-colors hover:bg-base-200"
+        >
+          Previous page
+        </a>
+      <% else %>
+        <span class="rounded-lg border border-base-300 px-3 py-2 text-base-content/40">
+          Previous page
+        </span>
+      <% end %>
+
+      <span class="text-base-content/70">Entry list page {@page}</span>
+
+      <%= if @has_next_page? do %>
+        <a
+          href={~p"/list/#{@feed.id}/entries/#{@entry.id}?page=#{@page + 1}"}
+          class="rounded-lg border border-base-300 px-3 py-2 font-medium text-base-content/80 transition-colors hover:bg-base-200"
+        >
+          Next page
+        </a>
+      <% else %>
+        <span class="rounded-lg border border-base-300 px-3 py-2 text-base-content/40">
+          Next page
+        </span>
+      <% end %>
+    </div>
+  </article>
+</Layouts.app>
