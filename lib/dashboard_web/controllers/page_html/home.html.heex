@@ -2,6 +2,8 @@
   flash={@flash}
   current_scope={assigns[:current_scope]}
   sidebar_feeds={assigns[:sidebar_feeds] || []}
+  feed_modal_open={assigns[:feed_modal_open] || false}
+  feed_modal_changeset={assigns[:feed_modal_changeset]}
 >
   <div class="left-[40rem] fixed inset-y-0 right-0 z-0 hidden lg:block xl:left-[50rem]">
     <svg

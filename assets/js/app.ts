@@ -29,13 +29,33 @@ document.querySelectorAll("[role=alert][data-flash]").forEach((el) => {
 declare global {
   interface Window {
     Swup: any;
+    SwupFragmentPlugin: any;
     SwupPreloadPlugin: any;
     SwupFormsPlugin: any;
   }
 }
 
 const swup = new window.Swup({
-  plugins: [new window.SwupPreloadPlugin(), new window.SwupFormsPlugin()],
+  plugins: [
+    new window.SwupFragmentPlugin({
+      rules: [
+        {
+          from: [
+            "/",
+            "/list",
+            "/list/:feed_id/entries",
+            "/list/:feed_id/entries/:entry_id",
+            "/feeds/new",
+          ],
+          to: "/feeds/new",
+          containers: ["#feed-modal"],
+          name: "feed-modal",
+        },
+      ],
+    }),
+    new window.SwupPreloadPlugin(),
+    new window.SwupFormsPlugin(),
+  ],
 });
 
 const normalizePath = (url: string) => {
@@ -47,6 +67,7 @@ const normalizePath = (url: string) => {
 };
 
 swup.hooks.on("form:submit", (_visit: unknown, { el }: { el: Element }) => {
+  // Make sure we skip cache when submitting the add-feed form
   if (!(el instanceof HTMLFormElement)) return;
 
   const submittedPath = normalizePath(el.action || window.location.href);

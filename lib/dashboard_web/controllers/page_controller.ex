@@ -12,10 +12,38 @@ defmodule DashboardWeb.PageController do
     render(conn, :list, list_assigns())
   end
 
-  def create_feed(conn, %{"feed" => feed_params}) do
-    url = Map.get(feed_params, "url", "")
+  def new_feed(conn, _params) do
+    render(
+      conn,
+      :list,
+      list_assigns() ++ [feed_modal_open: true, feed_modal_changeset: RSS.change_feed(%Feed{})]
+    )
+  end
 
-    case RSS.subscribe(url) do
+  def create_feed_modal(conn, %{"feed" => feed_params}) do
+    case create_feed_result(feed_params) do
+      {:ok, _feed} ->
+        conn
+        |> put_flash(:info, "Feed added")
+        |> redirect(to: ~p"/list")
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        conn
+        |> put_status(:unprocessable_entity)
+        |> render(
+          :list,
+          list_assigns() ++ [feed_modal_open: true, feed_modal_changeset: changeset]
+        )
+
+      {:error, _reason} ->
+        conn
+        |> put_flash(:error, "Could not subscribe to feed")
+        |> redirect(to: ~p"/list")
+    end
+  end
+
+  def create_feed(conn, %{"feed" => feed_params}) do
+    case create_feed_result(feed_params) do
       {:ok, _feed} ->
         conn
         |> put_flash(:info, "Feed added")
@@ -81,5 +109,10 @@ defmodule DashboardWeb.PageController do
 
   defp list_assigns(changeset \\ RSS.change_feed(%Feed{})) do
     [changeset: changeset]
+  end
+
+  defp create_feed_result(feed_params) do
+    url = Map.get(feed_params, "url", "")
+    RSS.subscribe(url)
   end
 end

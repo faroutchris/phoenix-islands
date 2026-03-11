@@ -26,7 +26,8 @@ defmodule DashboardWeb.PageControllerTest do
     body = html_response(conn, 200)
 
     assert body =~ "Feeds"
-    assert body =~ "Add feed"
+    assert body =~ "Add New Feed"
+    assert body =~ ~p"/feeds/new"
     assert body =~ "id=\"sidebar-feeds\""
     assert body =~ feed.title
     assert body =~ ~p"/list/#{feed.id}/entries"
@@ -54,11 +55,21 @@ defmodule DashboardWeb.PageControllerTest do
     assert body =~ url
   end
 
-  test "POST /list with invalid data renders errors", %{conn: conn} do
+  test "GET /feeds/new renders add feed modal", %{conn: conn} do
+    conn = get(conn, ~p"/feeds/new")
+    body = html_response(conn, 200)
+
+    assert body =~ "id=\"feed-modal\""
+    assert body =~ "id=\"feed-modal-form\""
+    assert body =~ "data-swup-link-to-fragment=\"#swup\""
+    assert body =~ ~p"/feeds/new"
+  end
+
+  test "POST /feeds/new with invalid data renders modal errors", %{conn: conn} do
     feed = feed_fixture(%{title: "Existing Feed", url: "https://example.com/existing.xml"})
 
     conn =
-      post(conn, ~p"/list", %{
+      post(conn, ~p"/feeds/new", %{
         "feed" => %{
           "title" => "",
           "url" => ""
@@ -67,7 +78,9 @@ defmodule DashboardWeb.PageControllerTest do
 
     body = html_response(conn, 422)
 
-    assert body =~ "Add feed"
+    assert body =~ "id=\"feed-modal\""
+    assert body =~ "id=\"feed-modal-form\""
+    assert body =~ "Add new feed"
     assert body =~ "can&#39;t be blank"
     assert body =~ "id=\"sidebar-feeds\""
     assert body =~ feed.title

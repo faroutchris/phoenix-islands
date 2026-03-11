@@ -75,7 +75,7 @@ config :dashboard, Dashboard.RSS.Backoff,
 # RSS ingest dependencies
 config :dashboard,
   rss_fetch_worker: Dashboard.RSS.FetchWorker,
-  rss_feed_parser: Gluttony
+  rss_feed_parser: Dashboard.RSS.FeedParser
 
 # Import environment specific config. This must remain at the bottom
 # of this file so it overrides the configuration defined above.

@@ -49,6 +49,9 @@ defmodule DashboardWeb.Layouts do
     default: nil,
     doc: "base path used to build entries pagination links"
 
+  attr :feed_modal_open, :boolean, default: false, doc: "whether add-feed modal is open"
+  attr :feed_modal_changeset, :any, default: nil, doc: "changeset used in add-feed modal form"
+
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -211,8 +214,8 @@ defmodule DashboardWeb.Layouts do
             <a href="https://github.com/phoenixframework/phoenix" class="btn btn-ghost btn-sm">
               GitHub
             </a>
-            <a href="https://hexdocs.pm/phoenix/overview.html" class="btn btn-primary btn-sm">
-              Get Started <span aria-hidden="true">&rarr;</span>
+            <a href={~p"/feeds/new"} class="btn btn-primary btn-sm">
+              Add New Feed
             </a>
           </div>
         </div>
@@ -221,6 +224,59 @@ defmodule DashboardWeb.Layouts do
         </div>
       </main>
     </div>
+
+    <%= if @feed_modal_open && @feed_modal_changeset do %>
+      <dialog id="feed-modal" open class="modal modal-open">
+        <div class="modal-box max-w-lg border border-base-300 bg-base-100">
+          <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-lg font-semibold text-base-content">Add new feed</h2>
+            <a
+              href={~p"/list"}
+              data-swup-link-to-fragment="#swup"
+              class="rounded-md border border-base-300 px-2 py-1 text-xs font-medium text-base-content/70 transition-colors hover:bg-base-200"
+            >
+              Close
+            </a>
+          </div>
+
+          <% form = to_form(@feed_modal_changeset) %>
+          <.form
+            for={form}
+            id="feed-modal-form"
+            action={~p"/feeds/new"}
+            method="post"
+            data-swup-form
+            class="space-y-4"
+            data-no-swup
+          >
+            <.input
+              field={form[:url]}
+              label="Feed URL"
+              placeholder="https://example.com/feed.xml"
+              type="url"
+              required
+            />
+            <div class="flex items-center justify-end gap-2">
+              <a
+                href={~p"/list"}
+                data-swup-link-to-fragment="#swup"
+                class="rounded-lg border border-base-300 px-3 py-2 text-sm font-medium text-base-content/80 transition-colors hover:bg-base-200"
+              >
+                Cancel
+              </a>
+              <button
+                type="submit"
+                class="rounded-lg bg-base-content px-4 py-2 text-sm font-medium text-base-100 transition-opacity hover:opacity-90"
+              >
+                Add feed
+              </button>
+            </div>
+          </.form>
+        </div>
+      </dialog>
+    <% else %>
+      <template id="feed-modal"></template>
+    <% end %>
 
     <.flash_group flash={@flash} />
     """

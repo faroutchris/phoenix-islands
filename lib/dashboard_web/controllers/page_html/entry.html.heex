@@ -9,6 +9,8 @@
   entries_has_previous_page?={@has_previous_page?}
   entries_has_next_page?={@has_next_page?}
   entries_pagination_base_path={@entries_pagination_base_path}
+  feed_modal_open={assigns[:feed_modal_open] || false}
+  feed_modal_changeset={assigns[:feed_modal_changeset]}
 >
   <article class="mx-auto max-w-4xl">
     <header class="border-b border-base-300 pb-6">
@@ -48,20 +50,8 @@
     <% media_enclosure =
       Enum.find(
         @entry.enclosures,
-        &(&1.media_type && String.starts_with?(&1.media_type, "audio/"))
-      ) ||
-        Enum.find(
-          @entry.enclosures,
-          &(&1.media_type && String.starts_with?(&1.media_type, "video/"))
-        ) %>
-
-    <%= if media_enclosure && String.starts_with?(media_enclosure.media_type || "", "audio/") do %>
-      <div class="mt-6 rounded-xl border border-base-300 bg-base-100 p-4 shadow-sm">
-        <audio controls preload="none" class="w-full">
-          <source src={media_enclosure.url} type={media_enclosure.media_type} />
-        </audio>
-      </div>
-    <% end %>
+        &(&1.media_type && String.starts_with?(&1.media_type, "video/"))
+      ) %>
 
     <%= if media_enclosure && String.starts_with?(media_enclosure.media_type || "", "video/") do %>
       <div class="mt-6 overflow-hidden rounded-xl border border-base-300 bg-base-100 shadow-sm">

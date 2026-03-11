@@ -8,6 +8,8 @@
   entries_has_previous_page?={@has_previous_page?}
   entries_has_next_page?={@has_next_page?}
   entries_pagination_base_path={@entries_pagination_base_path}
+  feed_modal_open={assigns[:feed_modal_open] || false}
+  feed_modal_changeset={assigns[:feed_modal_changeset]}
 >
   <section class="mx-auto max-w-4xl space-y-6">
     <header class="rounded-xl border border-base-300 bg-base-200/40 p-6">
